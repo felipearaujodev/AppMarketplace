@@ -1,6 +1,10 @@
+require('dotenv').config()
+
+const Sentry = require('@sentry/node')
 const express = require('express')
 const mongoose = require('mongoose')
 const databaseConfig = require('./config/database')
+const SentryConfig = require('./config/sentry')
 const validate = require('express-validation')
 const Youch = require('youch')
 
@@ -14,10 +18,15 @@ class App {
     this.express = express()
     this.isDev = process.env.NODE_ENV !== 'production'
 
+    this.sentry()
     this.database()
     this.midlewares()
     this.routes()
     this.exception()
+  }
+
+  sentry () {
+    Sentry.init(SentryConfig)
   }
 
   database () {
@@ -29,6 +38,7 @@ class App {
 
   midlewares () {
     this.express.use(express.json())
+    this.express.use(Sentry.Handlers.requestHandler())
   }
 
   routes () {
@@ -36,6 +46,9 @@ class App {
   }
 
   exception () {
+    if (process.env.NODE_ENV === 'production') {
+      this.express.use(Sentry.Handlers.errorHandler())
+    }
     this.express.use(async (err, req, res, next) => {
       if (err instanceof validate.ValidationError) {
         return res.status(err.status).json(err)
